@@ -6,6 +6,7 @@ import shutil
 from datetime import datetime
 
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 
 from database import (
     SessionLocal,
@@ -78,7 +79,8 @@ def test_db():
     db = SessionLocal()
 
     try:
-        db.execute("SELECT 1")
+        db.execute(text("SELECT 1"))
+
     finally:
         db.close()
 
@@ -165,6 +167,7 @@ def save_prescription(
 
 
     # Save image
+
     with open(file_path, "wb") as buffer:
 
         shutil.copyfileobj(
