@@ -1,8 +1,10 @@
 from fastapi import FastAPI, UploadFile, File, Form, Depends, Query
-from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 
-import shutil
+import os
+import cloudinary
+import cloudinary.uploader
+
 from datetime import datetime
 
 from sqlalchemy.orm import Session
@@ -25,6 +27,17 @@ Base.metadata.create_all(bind=engine)
 
 
 # -----------------------------
+# Cloudinary Configuration
+# -----------------------------
+
+cloudinary.config(
+    cloud_name=os.environ["CLOUDINARY_CLOUD_NAME"],
+    api_key=os.environ["CLOUDINARY_API_KEY"],
+    api_secret=os.environ["CLOUDINARY_API_SECRET"]
+)
+
+
+# -----------------------------
 # FastAPI App
 # -----------------------------
 
@@ -44,17 +57,6 @@ app.add_middleware(
     allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
-)
-
-
-# -----------------------------
-# Static Files
-# -----------------------------
-
-app.mount(
-    "/uploads",
-    StaticFiles(directory="uploads"),
-    name="uploads"
 )
 
 
@@ -153,27 +155,23 @@ def save_prescription(
         "%H%M%S"
     )
 
-    extension = file.filename.split(".")[-1]
-
     filename = (
         f"{safe_name}_"
         f"{clean_date}_"
-        f"{current_time}."
-        f"{extension}"
+        f"{current_time}"
     )
 
 
-    file_path = f"uploads/{filename}"
+    # Upload image to Cloudinary
+
+    upload_result = cloudinary.uploader.upload(
+        file.file,
+        folder="carepage_prescriptions",
+        public_id=filename
+    )
 
 
-    # Save image
-
-    with open(file_path, "wb") as buffer:
-
-        shutil.copyfileobj(
-            file.file,
-            buffer
-        )
+    image_url = upload_result["secure_url"]
 
 
     # Save database entry
@@ -181,7 +179,7 @@ def save_prescription(
     new_prescription = Prescription(
         patient_name=patient_name,
         date=date,
-        image_path=file_path
+        image_path=image_url
     )
 
 
@@ -194,5 +192,5 @@ def save_prescription(
 
     return {
         "message": "Prescription saved successfully",
-        "file_path": file_path
+        "file_path": image_url
     }
