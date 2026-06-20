@@ -2,12 +2,13 @@ from sqlalchemy import create_engine, Column, Integer, String
 from sqlalchemy.orm import sessionmaker, declarative_base
 
 
-DATABASE_URL = "sqlite:///./carepage.db"
+import os
+
+DATABASE_URL = os.environ["DATABASE_URL"]
 
 
 engine = create_engine(
-    DATABASE_URL,
-    connect_args={"check_same_thread": False}
+    DATABASE_URL
 )
 
 

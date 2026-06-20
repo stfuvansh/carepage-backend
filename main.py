@@ -1,13 +1,31 @@
-from fastapi import FastAPI, UploadFile, File, Form, Depends
+from fastapi import FastAPI, UploadFile, File, Form, Depends, Query
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi import Query
+
 import shutil
 from datetime import datetime
+
 from sqlalchemy.orm import Session
 
-from database import SessionLocal, Prescription, get_db
+from database import (
+    SessionLocal,
+    Prescription,
+    get_db,
+    Base,
+    engine
+)
 
+
+# -----------------------------
+# Create database tables
+# -----------------------------
+
+Base.metadata.create_all(bind=engine)
+
+
+# -----------------------------
+# FastAPI App
+# -----------------------------
 
 app = FastAPI(
     title="CarePage API",
@@ -59,7 +77,10 @@ def test_db():
 
     db = SessionLocal()
 
-    db.close()
+    try:
+        db.execute("SELECT 1")
+    finally:
+        db.close()
 
     return {
         "message": "Database connection successful"
@@ -78,6 +99,11 @@ def get_prescriptions(
     prescriptions = db.query(Prescription).all()
 
     return prescriptions
+
+
+# -----------------------------
+# Search Prescriptions
+# -----------------------------
 
 @app.get("/search-prescriptions")
 def search_prescriptions(
@@ -109,7 +135,8 @@ def search_prescriptions(
 def save_prescription(
     patient_name: str = Form(...),
     date: str = Form(...),
-    file: UploadFile = File(...)
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db)
 ):
 
     safe_name = (
@@ -118,17 +145,13 @@ def save_prescription(
         .replace(" ", "_")
     )
 
-
     clean_date = date.replace("-", "")
-
 
     current_time = datetime.now().strftime(
         "%H%M%S"
     )
 
-
     extension = file.filename.split(".")[-1]
-
 
     filename = (
         f"{safe_name}_"
@@ -143,6 +166,7 @@ def save_prescription(
 
     # Save image
     with open(file_path, "wb") as buffer:
+
         shutil.copyfileobj(
             file.file,
             buffer
@@ -150,24 +174,19 @@ def save_prescription(
 
 
     # Save database entry
-    db = SessionLocal()
 
-    try:
-
-        new_prescription = Prescription(
-            patient_name=patient_name,
-            date=date,
-            image_path=file_path
-        )
-
-        db.add(new_prescription)
-
-        db.commit()
+    new_prescription = Prescription(
+        patient_name=patient_name,
+        date=date,
+        image_path=file_path
+    )
 
 
-    finally:
+    db.add(new_prescription)
 
-        db.close()
+    db.commit()
+
+    db.refresh(new_prescription)
 
 
     return {
